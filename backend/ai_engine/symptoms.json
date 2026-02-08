@@ -1,0 +1,66 @@
+{
+  "symptom_categories": {
+    "cardiovascular": {
+      "symptoms": ["chest pain", "palpitations", "irregular heartbeat", "shortness of breath on exertion"],
+      "high_urgency_modifiers": ["severe", "crushing", "radiating to arm", "with sweating", "sudden onset"],
+      "low_urgency_modifiers": ["mild", "occasional", "after exercise", "known condition"]
+    },
+    "respiratory": {
+      "symptoms": ["cough", "shortness of breath", "wheezing", "sore throat", "blocked nose"],
+      "high_urgency_modifiers": ["coughing blood", "unable to speak", "blue lips", "stridor"],
+      "low_urgency_modifiers": ["mild", "dry cough", "3 days", "runny nose"]
+    },
+    "neurological": {
+      "symptoms": ["headache", "dizziness", "numbness", "tingling", "weakness", "vision changes"],
+      "high_urgency_modifiers": ["worst ever", "sudden onset", "one-sided", "with confusion", "thunderclap"],
+      "low_urgency_modifiers": ["tension type", "mild", "after screen time", "known migraine"]
+    },
+    "gastrointestinal": {
+      "symptoms": ["stomach pain", "nausea", "vomiting", "diarrhoea", "constipation", "bloating", "heartburn"],
+      "high_urgency_modifiers": ["blood in vomit", "blood in stool", "severe pain", "unable to eat/drink"],
+      "low_urgency_modifiers": ["mild", "intermittent", "after eating", "known IBS"]
+    },
+    "musculoskeletal": {
+      "symptoms": ["back pain", "joint pain", "muscle pain", "stiffness", "swelling"],
+      "high_urgency_modifiers": ["after injury", "unable to move", "deformity", "unable to bear weight"],
+      "low_urgency_modifiers": ["chronic", "mild", "occasional", "known arthritis"]
+    },
+    "dermatological": {
+      "symptoms": ["rash", "itching", "skin lump", "mole change", "wound", "burn"],
+      "high_urgency_modifiers": ["rapidly spreading", "blistering", "non-blanching", "infected"],
+      "low_urgency_modifiers": ["mild", "small area", "no pain", "known eczema"]
+    },
+    "mental_health": {
+      "symptoms": ["anxiety", "depression", "insomnia", "stress", "low mood", "panic attacks"],
+      "high_urgency_modifiers": ["suicidal thoughts", "self harm", "psychosis", "hearing voices"],
+      "low_urgency_modifiers": ["mild", "ongoing management", "work stress", "sleep difficulty"]
+    },
+    "urological": {
+      "symptoms": ["painful urination", "frequent urination", "blood in urine", "incontinence"],
+      "high_urgency_modifiers": ["unable to urinate", "severe pain", "blood in urine", "high fever"],
+      "low_urgency_modifiers": ["mild discomfort", "occasional", "known condition"]
+    },
+    "ent": {
+      "symptoms": ["ear pain", "hearing loss", "tinnitus", "sore throat", "nasal congestion", "nosebleed"],
+      "high_urgency_modifiers": ["sudden hearing loss", "vertigo", "severe", "persistent nosebleed"],
+      "low_urgency_modifiers": ["mild", "after cold", "wax buildup", "seasonal"]
+    }
+  },
+  "duration_urgency_map": {
+    "minutes": 0.3,
+    "hours": 0.25,
+    "1 day": 0.2,
+    "2-3 days": 0.1,
+    "1 week": 0.05,
+    "2 weeks": 0.0,
+    "1 month": -0.05,
+    "months": -0.1,
+    "years": -0.15
+  },
+  "urgency_thresholds": {
+    "emergency": 0.8,
+    "urgent": 0.55,
+    "routine": 0.3,
+    "self_care": 0.0
+  }
+}
