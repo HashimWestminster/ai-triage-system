@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.env
+
+# Django
+db.sqlite3
+staticfiles/
+media/
+
+# ML model (too large / regenerable)
+*.pkl
+
+# Node / React
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.sw?
+Thumbs.db
