@@ -30,3 +30,6 @@ npm-debug.log*
 *.suo
 *.sw?
 Thumbs.db
+
+# Personal notes
+SETUP_NOTES.md
