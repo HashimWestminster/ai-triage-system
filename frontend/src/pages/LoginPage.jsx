@@ -1,3 +1,7 @@
+// LoginPage.jsx - the login form
+// on success it redirects to the users role-specific dashboard
+// shows proper error messages for wrong password, server down etc
+
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -54,7 +58,7 @@ export default function LoginPage() {
               <Activity className="w-7 h-7 text-emerald-600" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">AI Triage System</h1>
-            <p className="text-gray-400 text-sm mt-1">Addison Road Medical Practice</p>
+            <p className="text-gray-400 text-sm mt-1">Westminster Surgery</p>
           </div>
 
           {/* Error */}

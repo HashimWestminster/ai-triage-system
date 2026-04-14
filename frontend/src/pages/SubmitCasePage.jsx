@@ -1,3 +1,8 @@
+// SubmitCasePage.jsx - multi-step form for patients to submit symptoms
+// steps: visit type -> body location -> duration -> describe symptoms ->
+// severity checkboxes -> review -> submit
+// checks surgery hours before submitting and shows the AI result at the end
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { submitCase, getSurgeryStatus } from '../services/api';

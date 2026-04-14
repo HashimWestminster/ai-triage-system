@@ -1,3 +1,7 @@
+// api.js - axios client for talking to the django backend
+// handles JWT tokens automatically and refreshes them when they expire
+// all the API calls are exported as named functions
+
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -7,6 +11,7 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// attach the JWT token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');
   if (token) {
@@ -15,14 +20,15 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-
+// handle 401 errors - try to refresh the token automatically
+// IMPORTANT: skip this for login/register endpoints, otherwise
+// a wrong password triggers a token refresh which makes no sense
+// and causes a redirect loop (this was a bug i had to fix)
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // Don't try to refresh tokens on auth endpoints - a 401 here just
-    // means the credentials were wrong, not that a token expired
     const isAuthEndpoint = originalRequest.url?.includes('/accounts/login/')
       || originalRequest.url?.includes('/accounts/register/');
 
@@ -38,6 +44,7 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${data.access}`;
           return api(originalRequest);
         } catch {
+          // refresh failed too, send them back to login
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
           window.location.href = '/login';
@@ -49,7 +56,7 @@ api.interceptors.response.use(
 );
 
 
-// Auth
+// --- auth ---
 export const login = (email, password) =>
   api.post('/accounts/login/', { email, password });
 
@@ -61,7 +68,7 @@ export const getMe = () => api.get('/accounts/me/');
 export const getUsers = (role) =>
   api.get('/accounts/users/', { params: role ? { role } : {} });
 
-// Cases
+// --- cases ---
 export const submitCase = (data) => api.post('/cases/submit/', data);
 
 export const getMyCases = () => api.get('/cases/my-cases/');
@@ -80,7 +87,7 @@ export const navigatorCloseCase = (caseId, data) =>
 export const getDashboardStats = () =>
   api.get('/cases/dashboard/stats/');
 
-// Surgery hours
+// --- surgery hours ---
 export const getSurgeryStatus = () =>
   api.get('/accounts/surgery-status/');
 

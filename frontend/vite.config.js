@@ -1,3 +1,7 @@
+// vite.config.js - dev server config
+// proxies /api requests to the django backend on port 8000
+// so we dont get CORS issues during development
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'

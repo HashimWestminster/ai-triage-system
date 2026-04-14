@@ -1,3 +1,7 @@
+# cases/views.py - all the API endpoints for triage cases
+# handles patient submissions, clinician decisions, navigator closures
+# and the dashboard stats
+
 from rest_framework import generics, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -14,6 +18,9 @@ from .serializers import (
     AdminCloseSerializer,
 )
 
+
+# --- permission classes ---
+# each one checks if the user has the right role to access the endpoint
 
 class IsPatient(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -36,20 +43,20 @@ class IsSuperuser(permissions.BasePermission):
 
 
 class IsStaff(permissions.BasePermission):
-    """Any non-patient staff member."""
+    """any non-patient user (clinician, navigator, or superuser)"""
     def has_permission(self, request, view):
         return request.user.role in ('clinician', 'care_navigator', 'superuser')
 
 
-# --- Patient endpoints ---
+# --- patient endpoints ---
 
 class PatientSubmitCase(generics.CreateAPIView):
-    """Patient submits a new case. AI triage runs automatically."""
+    """patient submits a new case - the AI triage runs automatically in the serializer"""
     serializer_class = PatientCaseCreateSerializer
     permission_classes = [permissions.IsAuthenticated, IsPatient]
 
     def create(self, request, *args, **kwargs):
-        # Check surgery hours before allowing submission
+        # check if the surgery is actually open before letting them submit
         from accounts.models import SurgeryHours
         now = timezone.localtime()
         current_day = now.weekday()
@@ -68,13 +75,13 @@ class PatientSubmitCase(generics.CreateAPIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
         except SurgeryHours.DoesNotExist:
-            pass  # No hours configured = always open
+            pass  # no hours set up = always open (default)
 
         return super().create(request, *args, **kwargs)
 
 
 class PatientMyCases(generics.ListAPIView):
-    """Patient views their own cases."""
+    """patient can only see their own cases"""
     serializer_class = PatientCaseListSerializer
     permission_classes = [permissions.IsAuthenticated, IsPatient]
 
@@ -82,15 +89,16 @@ class PatientMyCases(generics.ListAPIView):
         return PatientCase.objects.filter(patient=self.request.user)
 
 
-# --- Staff endpoints ---
+# --- staff endpoints ---
 
 class ClinicianCaseList(generics.ListAPIView):
-    """Staff view - all cases with optional filters."""
+    """staff can see all cases, with optional status/urgency filters"""
     serializer_class = PatientCaseListSerializer
     permission_classes = [permissions.IsAuthenticated, IsStaff]
 
     def get_queryset(self):
         qs = PatientCase.objects.all()
+        # let them filter by status or urgency from the query string
         status_filter = self.request.query_params.get('status')
         urgency_filter = self.request.query_params.get('urgency')
         if status_filter:
@@ -101,7 +109,7 @@ class ClinicianCaseList(generics.ListAPIView):
 
 
 class CaseDetail(generics.RetrieveAPIView):
-    """View full case detail."""
+    """full case detail - patients can only see their own, staff can see all"""
     serializer_class = PatientCaseDetailSerializer
     permission_classes = [permissions.IsAuthenticated]
     lookup_field = 'id'
@@ -116,7 +124,7 @@ class CaseDetail(generics.RetrieveAPIView):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated, IsClinician])
 def clinician_decide(request, case_id):
-    """Clinician makes a triage decision on a case."""
+    """clinician makes their triage decision on a case"""
     try:
         case = PatientCase.objects.get(id=case_id)
     except PatientCase.DoesNotExist:
@@ -133,6 +141,7 @@ def clinician_decide(request, case_id):
     case.status = PatientCase.Status.DECIDED
     case.save()
 
+    # log it in the audit trail
     AuditLog.objects.create(
         case=case, user=request.user,
         action=AuditLog.Action.CLINICIAN_DECIDED,
@@ -147,7 +156,7 @@ def clinician_decide(request, case_id):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def navigator_close_case(request, case_id):
-    """Care navigator or superuser closes a case with a closure reason."""
+    """care navigator or superuser closes a case after clinician has decided"""
     if request.user.role not in ('care_navigator', 'superuser'):
         return Response({"detail": "Not authorised."}, status=status.HTTP_403_FORBIDDEN)
 
@@ -167,6 +176,7 @@ def navigator_close_case(request, case_id):
     case.closed_at = timezone.now()
     case.save()
 
+    # log it
     AuditLog.objects.create(
         case=case, user=request.user,
         action=AuditLog.Action.CLOSED,
@@ -181,7 +191,7 @@ def navigator_close_case(request, case_id):
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated, IsStaff])
 def dashboard_stats(request):
-    """Dashboard statistics for staff."""
+    """returns aggregate stats for the staff dashboard"""
     cases = PatientCase.objects.all()
     today = timezone.now().date()
 
@@ -204,7 +214,7 @@ def dashboard_stats(request):
 
 
 def _calculate_agreement_rate(cases):
-    """Calculate how often clinicians agree with AI suggestion."""
+    """works out how often clinicians agree with the AI's suggestion"""
     from django.db.models import F
     decided = cases.filter(
         clinician_urgency__isnull=False,

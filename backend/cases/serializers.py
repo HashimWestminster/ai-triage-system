@@ -1,3 +1,6 @@
+# cases/serializers.py - converts case data to/from JSON for the API
+# the create serializer is where the AI triage actually runs
+
 from rest_framework import serializers
 from .models import PatientCase, AuditLog
 from accounts.serializers import UserSerializer
@@ -17,7 +20,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
 
 
 class PatientCaseCreateSerializer(serializers.ModelSerializer):
-    """Serializer for patients submitting a new case."""
+    """used when a patient submits a new case - this is where the AI runs"""
 
     class Meta:
         model = PatientCase
@@ -28,10 +31,11 @@ class PatientCaseCreateSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        # attach the patient to the case
         validated_data['patient'] = self.context['request'].user
         case = PatientCase.objects.create(**validated_data)
 
-        # Run AI triage
+        # run the AI triage engine on the submitted symptoms
         from ai_engine.triage import TriageEngine
         engine = TriageEngine()
         result = engine.assess(
@@ -42,13 +46,14 @@ class PatientCaseCreateSerializer(serializers.ModelSerializer):
             duration=validated_data.get('symptom_duration', ''),
         )
 
+        # save the AI results onto the case
         case.ai_urgency = result['urgency']
         case.ai_confidence = result['confidence']
         case.ai_rationale = result['rationale']
         case.ai_differential = result.get('differential', [])
         case.save()
 
-        # Audit log
+        # create audit log entries for the submission and AI triage
         AuditLog.objects.create(
             case=case, user=case.patient,
             action=AuditLog.Action.CREATED,
@@ -65,7 +70,7 @@ class PatientCaseCreateSerializer(serializers.ModelSerializer):
 
 
 class PatientCaseListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for case lists."""
+    """lighter version for case list tables"""
     patient_name = serializers.SerializerMethodField()
     clinician_name = serializers.SerializerMethodField()
 
@@ -87,7 +92,7 @@ class PatientCaseListSerializer(serializers.ModelSerializer):
 
 
 class PatientCaseDetailSerializer(serializers.ModelSerializer):
-    """Full detail serializer for viewing a case."""
+    """full case detail with nested user info and audit logs"""
     patient = UserSerializer(read_only=True)
     clinician = UserSerializer(read_only=True)
     admin_handler = UserSerializer(read_only=True)
@@ -99,12 +104,12 @@ class PatientCaseDetailSerializer(serializers.ModelSerializer):
 
 
 class ClinicianDecisionSerializer(serializers.Serializer):
-    """Serializer for clinician making a triage decision."""
+    """validates the clinician's triage decision"""
     clinician_urgency = serializers.ChoiceField(choices=PatientCase.Urgency.choices)
     clinician_notes = serializers.CharField(required=False, allow_blank=True)
 
 
 class AdminCloseSerializer(serializers.Serializer):
-    """Serializer for admin closing a case."""
+    """validates the closure form when navigator closes a case"""
     closure_reason = serializers.ChoiceField(choices=PatientCase.ClosureReason.choices)
     closure_notes = serializers.CharField(required=False, allow_blank=True)

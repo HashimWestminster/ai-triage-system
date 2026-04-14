@@ -1,10 +1,15 @@
+# cases/models.py - the main data models for triage cases
+# PatientCase holds everything about a submission: symptoms, AI result,
+# clinician decision, and closure info
+# AuditLog tracks every action on a case for clinical safety
+
 from django.db import models
 from django.conf import settings
 import uuid
 
 
 class PatientCase(models.Model):
-    """A patient's triage case submitted through the system."""
+    """stores a patient's triage case - from submission through to closure"""
 
     class Urgency(models.TextChoices):
         EMERGENCY = 'emergency', 'Emergency (999/A&E)'
@@ -18,6 +23,7 @@ class PatientCase(models.Model):
         DECIDED = 'decided', 'Decided (Awaiting Navigator Action)'
         CLOSED = 'closed', 'Closed'
 
+    # closure reasons - the care navigator picks one when closing a case
     class ClosureReason(models.TextChoices):
         APPOINTMENT_BOOKED = 'appointment_booked', 'Appointment Booked'
         URGENT_REFERRAL = 'urgent_referral', 'Urgent Referral (A&E/999)'
@@ -29,18 +35,18 @@ class PatientCase(models.Model):
         MESSAGE_SENT = 'message_sent', 'Message Sent to Patient'
         OTHER = 'other', 'Other'
 
-    # Identifiers
+    # using UUID so case IDs cant be guessed from the URL
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     case_number = models.CharField(max_length=20, unique=True, editable=False)
 
-    # Patient info
+    # who submitted it
     patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='cases',
     )
 
-    # Symptom submission
+    # all the symptom info from the multi-step form
     visit_type = models.CharField(max_length=100, default='New medical issue')
     body_location = models.CharField(max_length=100, blank=True)
     symptom_duration = models.CharField(max_length=100, blank=True)
@@ -57,7 +63,7 @@ class PatientCase(models.Model):
     previous_treatment = models.BooleanField(default=False)
     previously_seen = models.BooleanField(default=False)
 
-    # AI Triage suggestion
+    # AI triage results - filled in automatically when case is submitted
     ai_urgency = models.CharField(
         max_length=20, choices=Urgency.choices, blank=True,
         help_text="AI-suggested urgency level"
@@ -75,7 +81,7 @@ class PatientCase(models.Model):
         help_text="AI differential diagnosis suggestions"
     )
 
-    # Clinician decision
+    # clinician decision - filled in when a clinician reviews the case
     clinician = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -89,7 +95,7 @@ class PatientCase(models.Model):
     clinician_notes = models.TextField(blank=True)
     clinician_decision_at = models.DateTimeField(null=True, blank=True)
 
-    # Closure (care navigator handles this)
+    # closure - care navigator handles this after clinician decides
     admin_handler = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -104,7 +110,7 @@ class PatientCase(models.Model):
     )
     closure_notes = models.TextField(blank=True)
 
-    # Timestamps
+    # timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     closed_at = models.DateTimeField(null=True, blank=True)
@@ -116,6 +122,7 @@ class PatientCase(models.Model):
         return f"Case {self.case_number} - {self.patient.get_full_name()}"
 
     def save(self, *args, **kwargs):
+        # generate a random case number if one doesnt exist yet
         if not self.case_number:
             import random
             import string
@@ -124,7 +131,7 @@ class PatientCase(models.Model):
 
 
 class AuditLog(models.Model):
-    """Complete audit trail for all actions on a case. Required for clinical safety."""
+    """tracks every action on a case - needed for clinical governance/safety"""
 
     class Action(models.TextChoices):
         CREATED = 'created', 'Case Created'

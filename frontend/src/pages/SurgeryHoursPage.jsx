@@ -1,3 +1,7 @@
+// SurgeryHoursPage.jsx - lets the superuser configure when the surgery is open
+// shows a grid with all 7 days, open/close times, and a "closed" toggle
+// patients can only submit cases during these configured hours
+
 import { useState, useEffect } from 'react';
 import { getSurgeryHours, updateSurgeryHours } from '../services/api';
 import { Clock, Save, CheckCircle } from 'lucide-react';

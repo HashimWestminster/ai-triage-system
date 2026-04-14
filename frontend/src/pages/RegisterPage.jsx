@@ -1,3 +1,7 @@
+// RegisterPage.jsx - patient registration form
+// collects name, email, password, phone, NHS number etc
+// auto-generates a username from the email and redirects to login on success
+
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { register } from '../services/api';

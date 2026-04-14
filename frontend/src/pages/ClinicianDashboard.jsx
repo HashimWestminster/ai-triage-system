@@ -1,3 +1,7 @@
+// ClinicianDashboard.jsx - case list for clinicians, navigators, and superusers
+// shows all cases in a table with filters for status and urgency
+// also used by NavigatorDashboard (just re-exports this component)
+
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getCases } from '../services/api';

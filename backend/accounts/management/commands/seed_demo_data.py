@@ -1,7 +1,6 @@
-"""
-Management command to seed the database with demo data.
-Student: Hashim Khan (W1832028)
-"""
+# seed_demo_data.py - creates test users and default surgery hours
+# run with: python manage.py seed_demo_data
+# Hashim Khan - W1832028
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
@@ -16,7 +15,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('Seeding demo data...')
 
-        # --- Users ---
+        # demo users - 2 clinicians, 2 care navigators, 1 superuser, 3 patients
         users = [
             {
                 'username': 'dr.smith',
@@ -109,15 +108,15 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f'  Skipped (exists): {user.username}')
 
-        # --- Default surgery hours (Mon-Fri 08:00-18:00, Sat 09:00-12:00, Sun closed) ---
+        # default surgery hours - typical GP opening times
         default_hours = [
-            {'day_of_week': 0, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},
-            {'day_of_week': 1, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},
-            {'day_of_week': 2, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},
-            {'day_of_week': 3, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},
-            {'day_of_week': 4, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},
-            {'day_of_week': 5, 'open_time': '09:00', 'close_time': '12:00', 'is_closed': False},
-            {'day_of_week': 6, 'open_time': '00:00', 'close_time': '00:00', 'is_closed': True},
+            {'day_of_week': 0, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},  # mon
+            {'day_of_week': 1, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},  # tue
+            {'day_of_week': 2, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},  # wed
+            {'day_of_week': 3, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},  # thu
+            {'day_of_week': 4, 'open_time': '08:00', 'close_time': '18:00', 'is_closed': False},  # fri
+            {'day_of_week': 5, 'open_time': '09:00', 'close_time': '12:00', 'is_closed': False},  # sat
+            {'day_of_week': 6, 'open_time': '00:00', 'close_time': '00:00', 'is_closed': True},   # sun
         ]
 
         for h in default_hours:

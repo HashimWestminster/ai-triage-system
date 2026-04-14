@@ -1,39 +1,39 @@
-"""
-Red-flag safety rules for the AI triage engine.
-These rules ALWAYS override the ML model to ensure patient safety.
+# rules.py - safety rules for the triage engine
+# these are the hard-coded red flags that ALWAYS override the ML model
+# i got these from NHS HES (Hospital Episode Statistics) 2024-25 data
+# basically looked at which symptoms have the highest emergency admission rates
+# and made sure those always get flagged properly regardless of what the model thinks
+#
+# the idea is: a ML model can be wrong sometimes, but if someone types
+# "chest pain" we cant afford to miss that. so rules > model always.
 
-Based on NHS HES 2024-25 data 
 
-"""
-
-# =============================================================================
-# Red-flag symptoms that ALWAYS trigger Emergency (999/A&E)
-# Derived from ICD-10 codes 
-# =============================================================================
+# emergency red flags - these trigger 999/A&E immediately
+# each group is mapped to an ICD-10 code from the NHS data
 EMERGENCY_RED_FLAGS = [
-    # I21 Heart Attack 
+    # I21 Heart Attack - 94% ER rate
     'chest pain', 'heart attack', 'cardiac arrest', 'crushing chest',
     'chest tightness', 'angina',
 
-    # J18 Pneumonia 
+    # J18 Pneumonia - 97% ER rate
     'difficulty breathing', "can't breathe", 'cannot breathe',
     'shortness of breath at rest', 'choking', 'airway obstruction',
 
-    # I63 Stroke 
+    # I63 Stroke - 90% ER rate
     'stroke', 'facial drooping', 'face drooping', 'slurred speech',
     'sudden weakness one side', 'loss of consciousness', 'unconscious',
     'unresponsive',
 
-    # A41 Sepsis 
+    # A41 Sepsis - 95% ER rate
     'sepsis', 'mottled skin',
 
-    # R29 Collapse 
+    # R29 Collapse - 94% ER rate
     'collapsed', 'unresponsive',
 
-    # S72 Hip Fracture 
+    # S72 Hip Fracture - 94% ER rate
     'broken hip', 'fractured hip', 'hip fracture',
 
-    # J44 COPD severe 
+    # J44 COPD severe
     'blue lips', 'cyanosis',
 
     # Seizures
@@ -43,7 +43,7 @@ EMERGENCY_RED_FLAGS = [
     'anaphylaxis', 'anaphylactic', 'severe allergic reaction',
     'throat swelling', 'tongue swelling',
 
-    # X60 Overdose/Self-harm 
+    # X60 Overdose/Self-harm - 100% ER rate
     'overdose', 'poisoning', 'taken too many tablets',
     'taken too many pills', 'self-harm', 'self harm',
 
@@ -55,47 +55,46 @@ EMERGENCY_RED_FLAGS = [
     'meningitis', 'stiff neck with fever', 'rash that does not fade',
     'non-blanching rash',
 
-    # W19 Falls with injury 
+    # W19 Falls with injury - 94% ER rate
     'head injury', 'loss of consciousness',
-    # W10 Falls on stairs 
+    # W10 Falls on stairs - 90% ER rate
     'fell down stairs', 'fallen down stairs', "can't move my leg",
     'cannot move', 'unable to move',
 
-    # V03 Road traffic accident
+    # V03 Road traffic accident - 93% ER rate
     'hit by a car', 'road traffic accident', 'run over',
 
     # Pregnancy emergencies
     'heavy bleeding pregnant', 'waters broken premature',
 
-    # Paediatric
+    # Paediatric emergencies
     'baby not breathing', 'child unresponsive', 'baby floppy',
 ]
 
-# =============================================================================
-# Symptoms that trigger Urgent (same-day GP)
-# Derived from ICD-10 codes with 40-80% emergency rate
-# =============================================================================
+# urgent flags - need same-day GP appointment
+# these are conditions with 40-80% emergency admission rates
+# serious but not immediately life-threatening
 URGENT_FLAGS = [
-    # R10 Abdominal Pain 
+    # R10 Abdominal Pain - 67% ER rate
     'severe abdominal pain', 'severe stomach pain',
 
-    # N39 UTI with systemic symptoms 
+    # N39 UTI with systemic symptoms
     'blood in urine', 'unable to urinate', 'urinary retention',
 
-    # A09 Gastroenteritis severe 
+    # A09 Gastroenteritis severe - 77% ER rate
     'persistent vomiting', 'unable to keep fluids down',
 
-    # L03 Cellulitis 
+    # L03 Cellulitis - 81% ER rate
     'spreading redness', 'cellulitis', 'red line tracking',
 
-    # K80 Gallstones 
+    # K80 Gallstones
     'pain under right ribs',
 
     # Infection signs
     'high fever', 'fever over 39', 'temperature over 39',
     'fever not responding to paracetamol',
 
-    # Other urgent
+    # Other urgent stuff
     'blood in stool', 'vomiting blood',
     'worst headache ever', 'thunderclap headache', 'sudden severe headache',
     'new confusion', 'sudden vision loss',
@@ -104,25 +103,27 @@ URGENT_FLAGS = [
     'rash non blanching', 'non-blanching rash',
     'rapidly spreading rash', 'cellulitis spreading',
 
-    # W54 Dog bite 
+    # W54 Dog bite - 79% ER rate
     'dog bite', 'animal bite',
 ]
 
 
+# routine indicators - stuff that can wait for a normal GP appointment
+# used to prevent over-triaging minor conditions
 ROUTINE_INDICATORS = [
-    # H25 Cataracts 
+    # H25 Cataracts - 0% ER rate, all waitlist
     'cloudy vision', 'blurry vision gradually',
 
-    # M17 Knee arthritis 
+    # M17 Knee arthritis
     'knee stiffness', 'knee arthritis',
 
-    # M16 Hip arthritis 
+    # M16 Hip arthritis
     'hip arthritis', 'hip stiffness',
 
-    # D50 Iron deficiency 
+    # D50 Iron deficiency
     'low iron', 'iron deficiency',
 
-    # Common minor conditions
+    # common minor stuff that doesnt need urgent attention
     'sore throat', 'common cold', 'runny nose', 'mild cough',
     'mild headache', 'hayfever', 'hay fever', 'acne', 'verruca',
     'mild back pain', 'minor rash', 'mild stomach ache',
@@ -133,6 +134,8 @@ ROUTINE_INDICATORS = [
 ]
 
 
+# maps body part keywords to their medical body system
+# used in the rationale to say things like "Body system: cardiovascular"
 BODY_SYSTEM_MAP = {
     'chest': 'cardiovascular/respiratory',
     'head': 'neurological',
@@ -157,14 +160,13 @@ BODY_SYSTEM_MAP = {
 
 def check_red_flags(text: str) -> dict | None:
     """
-    Check text against red-flag rules. Returns urgency if a red flag is found.
-    This is the SAFETY NET — it always takes priority over the ML model.
-
-    Based on NHS HES 2024-25 emergency admission data.
+    checks the patient text against all the red flag rules.
+    this is the safety net - runs before the ML model and always takes priority.
+    returns the urgency dict if a flag is found, None otherwise.
     """
     text_lower = text.lower()
 
-    # Check emergency flags first
+    # check emergency flags first - these are the most dangerous
     for flag in EMERGENCY_RED_FLAGS:
         if flag in text_lower:
             return {
@@ -180,7 +182,7 @@ def check_red_flags(text: str) -> dict | None:
                 ),
             }
 
-    # Check urgent flags
+    # then check urgent flags
     for flag in URGENT_FLAGS:
         if flag in text_lower:
             return {
@@ -198,6 +200,6 @@ def check_red_flags(text: str) -> dict | None:
 
 
 def check_routine_indicators(text: str) -> bool:
-    """Check if text matches routine/self-care patterns."""
+    """checks if the text matches any of the routine/minor condition patterns"""
     text_lower = text.lower()
     return any(indicator in text_lower for indicator in ROUTINE_INDICATORS)

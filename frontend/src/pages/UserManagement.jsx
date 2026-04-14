@@ -1,3 +1,6 @@
+// UserManagement.jsx - user list page for navigators and superusers
+// shows all registered users with their roles and last login
+
 import { useState, useEffect } from 'react';
 import { getUsers } from '../services/api';
 import { Search } from 'lucide-react';

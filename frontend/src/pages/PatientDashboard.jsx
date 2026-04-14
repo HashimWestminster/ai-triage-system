@@ -1,9 +1,14 @@
+// PatientDashboard.jsx - the patient's home page
+// shows their submitted cases and whether the surgery is open
+// the submit button is disabled when surgery is closed
+
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getMyCases, getSurgeryStatus } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Clock, AlertCircle } from 'lucide-react';
 
+// colour config for urgency badges and status labels
 const urgencyConfig = {
   emergency: { label: 'Emergency', color: 'bg-red-50 text-red-700 ring-1 ring-red-200', dot: 'bg-red-500' },
   urgent: { label: 'Urgent', color: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', dot: 'bg-amber-500' },

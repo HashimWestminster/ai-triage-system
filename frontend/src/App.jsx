@@ -1,3 +1,7 @@
+// App.jsx - main routing for the whole app
+// each role gets their own set of routes, and ProtectedRoute
+// makes sure users can only access pages for their role
+
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
@@ -12,6 +16,7 @@ import UserManagement from './pages/UserManagement';
 import DashboardStats from './pages/DashboardStats';
 import SurgeryHoursPage from './pages/SurgeryHoursPage';
 
+// wrapper that checks if the user is logged in and has the right role
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center h-screen text-gray-400">Loading...</div>;
@@ -20,6 +25,7 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
+// sends logged-in users to their role's dashboard
 function HomeRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" />;
@@ -30,6 +36,7 @@ function HomeRedirect() {
   return <Navigate to="/login" />;
 }
 
+// role groups for route access
 const STAFF = ['clinician', 'care_navigator', 'superuser'];
 const NAVIGATORS = ['care_navigator', 'superuser'];
 
@@ -40,7 +47,7 @@ export default function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/" element={<HomeRedirect />} />
 
-      {/* Patient routes */}
+      {/* patient pages */}
       <Route path="/patient" element={
         <ProtectedRoute allowedRoles={['patient']}>
           <Layout><PatientDashboard /></Layout>
@@ -57,7 +64,7 @@ export default function App() {
         </ProtectedRoute>
       } />
 
-      {/* Clinician routes */}
+      {/* clinician pages */}
       <Route path="/clinician" element={
         <ProtectedRoute allowedRoles={['clinician']}>
           <Layout><ClinicianDashboard /></Layout>
@@ -69,7 +76,7 @@ export default function App() {
         </ProtectedRoute>
       } />
 
-      {/* Care navigator routes */}
+      {/* care navigator pages */}
       <Route path="/navigator" element={
         <ProtectedRoute allowedRoles={NAVIGATORS}>
           <Layout><NavigatorDashboard /></Layout>
@@ -81,7 +88,7 @@ export default function App() {
         </ProtectedRoute>
       } />
 
-      {/* Site superuser routes */}
+      {/* superuser pages - gets navigator dashboard + extra settings */}
       <Route path="/admin" element={
         <ProtectedRoute allowedRoles={['superuser']}>
           <Layout><NavigatorDashboard /></Layout>
@@ -103,7 +110,7 @@ export default function App() {
         </ProtectedRoute>
       } />
 
-      {/* Shared staff routes */}
+      {/* shared staff pages */}
       <Route path="/dashboard" element={
         <ProtectedRoute allowedRoles={STAFF}>
           <Layout><DashboardStats /></Layout>

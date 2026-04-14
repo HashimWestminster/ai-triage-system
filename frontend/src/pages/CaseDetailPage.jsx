@@ -1,3 +1,10 @@
+// CaseDetailPage.jsx - shows the full detail of a triage case
+// different sections show depending on the users role:
+//   - everyone sees the patient info, symptoms, and AI prediction
+//   - clinicians get a form to make their triage decision
+//   - navigators/superusers get a form to close the case
+// the AI panel shows confidence, rationale, and differential diagnoses
+
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getCaseDetail, clinicianDecide, navigatorCloseCase } from '../services/api';

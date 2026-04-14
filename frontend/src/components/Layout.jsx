@@ -1,3 +1,7 @@
+// Layout.jsx - the main wrapper component with the top nav bar
+// shows different nav links depending on the users role
+// also handles mobile responsive menu
+
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -6,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+// friendly labels for each role
 const ROLE_LABELS = {
   patient: 'Patient',
   clinician: 'Clinician',
@@ -40,7 +45,7 @@ export default function Layout({ children }) {
               </div>
               <div>
                 <span className="font-bold text-gray-900 text-sm tracking-wide">AI TRIAGE</span>
-                <span className="hidden sm:inline text-gray-400 text-xs ml-2">Addison Road Medical Practice</span>
+                <span className="hidden sm:inline text-gray-400 text-xs ml-2">Westminster Surgery</span>
               </div>
             </Link>
 
@@ -133,6 +138,7 @@ export default function Layout({ children }) {
   );
 }
 
+// each role gets different nav items
 function getNavItems(role) {
   const items = {
     patient: [

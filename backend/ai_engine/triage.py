@@ -1,4 +1,12 @@
 
+# triage.py - main AI triage engine
+# this is the core of the whole system, it takes in patient symptoms
+# and figures out how urgent they are using 3 layers:
+#   1. safety rules (hardcoded red flags from NHS data)
+#   2. NLP with spaCy (pulls out symptoms, severity, body parts etc)
+#   3. ML model (random forest trained on 291 symptom scenarios)
+# the layers combine together so safety rules always win over the ML model
+
 import json
 import pickle
 import os
@@ -16,23 +24,23 @@ class TriageEngine:
         self._load_resources()
 
     def _load_resources(self):
-        """Load the ML model, spaCy NLP, and symptom mappings."""
+        """loads up the ML model, spaCy, and symptom config when the engine starts"""
         base_dir = Path(__file__).parent
 
-        # Load ML model
+        # load the trained sklearn model from the pickle file
         model_path = base_dir / 'triage_model.pkl'
         if model_path.exists():
             with open(model_path, 'rb') as f:
                 self.model = pickle.load(f)
 
-        # Load spaCy (graceful fallback if not available)
+        # try to load spaCy - if its not installed just fall back to basic keywords
         try:
             import spacy
             self.nlp = spacy.load('en_core_web_sm')
         except (ImportError, OSError):
             self.nlp = None
 
-        # Load symptom data
+        # load the symptom categories and urgency modifiers from json
         symptoms_path = base_dir / 'symptoms.json'
         if symptoms_path.exists():
             with open(symptoms_path, 'r') as f:
@@ -42,31 +50,20 @@ class TriageEngine:
                severity_symptoms: list = None, body_location: str = '',
                duration: str = '') -> dict:
         """
-        Assess patient symptoms and return an advisory urgency suggestion.
-
-        This is the main entry point called by the Django view when a patient
-        submits a case.
-
-        Args:
-            symptoms_text: Free-text description of symptoms
-            selected_symptoms: List of structured symptom selections from the form
-            severity_symptoms: List of severity/red-flag symptoms selected
-            body_location: Body area affected (from form selection)
-            duration: How long symptoms have been present
-
-        Returns:
-            dict with urgency, confidence, rationale, differential, and method
+        main entry point - called by the django view when a patient submits a case.
+        takes in all the symptom info from the form and returns the triage result
+        with urgency level, confidence, rationale and differential diagnoses.
         """
-        # Combine all text inputs for analysis
+        # mash all the text inputs together so we can analyse everything at once
         combined_text = self._build_combined_text(
             symptoms_text, selected_symptoms, severity_symptoms,
             body_location, duration
         )
 
-        # =====================================================================
-        # LAYER 1: Safety rules check (ALWAYS runs first)
-        # Based on NHS HES 2024-25 emergency admission rates
-        # =====================================================================
+        # ---- LAYER 1: safety rules ----
+        # these ALWAYS run first - if someone says "chest pain" or "stroke"
+        # we dont even bother with the ML model, just flag it as emergency
+        # based on NHS HES 2024-25 emergency admission stats
         rule_result = check_red_flags(combined_text)
         if rule_result:
             rule_result['method'] = 'rule_based_safety'
@@ -74,31 +71,29 @@ class TriageEngine:
             rule_result['extracted_symptoms'] = self._extract_symptom_keywords(combined_text)
             return rule_result
 
-        # =====================================================================
-        # LAYER 2: NLP feature extraction (spaCy)
-        # =====================================================================
+        # ---- LAYER 2: NLP feature extraction ----
+        # use spaCy to pull out symptoms, severity words, body parts etc
         nlp_features = self._extract_nlp_features(combined_text)
 
-        # =====================================================================
-        # LAYER 3: ML classification (scikit-learn)
-        # =====================================================================
+        # ---- LAYER 3: ML classification ----
+        # random forest model predicts the urgency level
         ml_result = self._ml_predict(combined_text)
 
-        # =====================================================================
-        # COMBINE: Merge ML + NLP + duration modifiers
-        # =====================================================================
+        # ---- COMBINE everything ----
+        # take the ML prediction and adjust it based on what the NLP found
+        # e.g. if theres lots of severity words, bump up the urgency
         urgency, confidence = self._combine_results(
             ml_result, nlp_features, duration,
             severity_symptoms or []
         )
 
-        # Generate explainable rationale
+        # build the explanation text so clinicians can see why we picked this level
         rationale = self._generate_rationale(
             urgency, confidence, nlp_features,
             body_location, duration, combined_text
         )
 
-        # Generate differential diagnosis suggestions
+        # suggest possible diagnoses for the clinician to consider
         differential = self._generate_differential(combined_text, body_location)
 
         return {
@@ -112,7 +107,7 @@ class TriageEngine:
 
     def _build_combined_text(self, symptoms_text, selected_symptoms,
                               severity_symptoms, body_location, duration):
-        """Combine all symptom information into a single text for analysis."""
+        """joins all the different symptom inputs into one string for analysis"""
         parts = [symptoms_text]
         if selected_symptoms:
             parts.append(' '.join(selected_symptoms))
@@ -125,7 +120,7 @@ class TriageEngine:
         return ' '.join(parts)
 
     def _extract_symptom_keywords(self, text: str) -> list:
-        """Quick keyword extraction for display purposes."""
+        """quick keyword check - just looks for common symptom words in the text"""
         text_lower = text.lower()
         common = [
             'pain', 'headache', 'fever', 'cough', 'rash', 'bleeding',
@@ -136,7 +131,12 @@ class TriageEngine:
         return [s for s in common if s in text_lower]
 
     def _extract_nlp_features(self, text: str) -> dict:
-        """Use spaCy to extract medical entities and features from text."""
+        """
+        uses spaCy to properly extract medical info from the text.
+        pulls out noun chunks as symptoms, finds severity words like "severe"
+        or "crushing", detects body parts, checks for duration mentions,
+        and spots negations (like "no fever") so we dont count those.
+        """
         features = {
             'symptoms': [],
             'body_parts': [],
@@ -145,17 +145,18 @@ class TriageEngine:
             'negations': [],
         }
 
+        # if spaCy isnt available just use the basic keyword fallback
         if not self.nlp:
             return self._simple_keyword_extraction(text)
 
         doc = self.nlp(text)
 
-        # Extract noun phrases as potential symptoms
+        # noun chunks give us multi-word symptoms like "severe headache"
         for chunk in doc.noun_chunks:
             chunk_text = chunk.text.lower()
             features['symptoms'].append(chunk_text)
 
-        # Look for severity modifiers
+        # look for words that indicate how bad it is
         severity_words = {'severe', 'worst', 'extreme', 'intense', 'unbearable',
                          'acute', 'sudden', 'sharp', 'constant', 'persistent',
                          'worsening', 'deteriorating', 'critical', 'crushing',
@@ -164,19 +165,19 @@ class TriageEngine:
             if token.text.lower() in severity_words:
                 features['severity_words'].append(token.text.lower())
 
-        # Check for body parts
+        # check which body system is affected using the map from rules.py
         for key in BODY_SYSTEM_MAP:
             if key in text.lower():
                 features['body_parts'].append(key)
 
-        # Check for duration mentions
+        # see if they mentioned how long theyve had symptoms
         duration_words = {'hours', 'days', 'weeks', 'months', 'years', 'minutes'}
         for token in doc:
             if token.text.lower() in duration_words:
                 features['duration_mentioned'] = True
                 break
 
-        # Check for negations
+        # catch negations - "no fever" means we shouldnt count fever as a symptom
         for token in doc:
             if token.dep_ == 'neg':
                 features['negations'].append(token.head.text)
@@ -184,7 +185,7 @@ class TriageEngine:
         return features
 
     def _simple_keyword_extraction(self, text: str) -> dict:
-        """Fallback keyword extraction without spaCy."""
+        """fallback if spaCy isnt installed - just does basic keyword matching"""
         text_lower = text.lower()
         features = {
             'symptoms': [],
@@ -217,8 +218,9 @@ class TriageEngine:
         return features
 
     def _ml_predict(self, text: str) -> dict:
-        """Use the trained ML model to predict urgency."""
+        """runs the text through the trained random forest model to get a prediction"""
         if not self.model:
+            # no model loaded, just default to routine
             return {'urgency': 'routine', 'confidence': 0.5}
 
         prediction = self.model.predict([text])[0]
@@ -233,18 +235,17 @@ class TriageEngine:
 
     def _combine_results(self, ml_result, nlp_features, duration, severity_symptoms):
         """
-        Combine ML prediction with NLP features and clinical modifiers.
-
-        The combination logic ensures that:
-        - Severity words increase urgency
-        - Structured form severity selections increase urgency
-        - Acute onset (minutes/hours) increases urgency
-        - Chronic duration does not decrease below routine
+        this is where everything comes together. takes the ML prediction
+        and adjusts it based on what the NLP found. basically:
+        - lots of severity words = bump up urgency
+        - patient ticked red flag checkboxes = bump up urgency
+        - symptoms just started (acute) = bump up urgency
+        - text matches routine stuff like "sore throat" = dont over-triage
         """
         urgency = ml_result['urgency']
         confidence = ml_result['confidence']
 
-        # Severity modifier: multiple severity words = higher urgency
+        # if theres multiple severity words like "severe worsening" thats a bad sign
         severity_count = len(nlp_features.get('severity_words', []))
         if severity_count >= 2:
             if urgency == 'routine':
@@ -254,13 +255,14 @@ class TriageEngine:
                 urgency = 'routine'
                 confidence = max(confidence, 0.6)
 
-        # Single strong severity word with relevant symptom
+        # even one severity word + multiple symptoms should push it up a bit
         if severity_count >= 1 and len(nlp_features.get('symptoms', [])) >= 2:
             if urgency == 'self_care':
                 urgency = 'routine'
                 confidence = max(confidence, 0.55)
 
-        # Structured form severity symptoms increase urgency
+        # if patient selected severity checkboxes on the form (like "difficulty breathing")
+        # thats a strong signal to increase urgency
         real_severity = [s for s in severity_symptoms if s != 'None of these']
         if len(real_severity) > 0:
             if urgency in ('self_care', 'routine'):
@@ -269,11 +271,11 @@ class TriageEngine:
             elif urgency == 'urgent':
                 confidence = max(confidence, 0.75)
 
-        # Duration modifier
+        # if symptoms just started (minutes/hours) thats more concerning
+        # than something thats been going on for weeks
         if duration:
             duration_lower = duration.lower()
             if any(w in duration_lower for w in ['minute', 'hour', 'just started', 'sudden', 'today']):
-                # Acute onset -> increase urgency
                 if urgency == 'routine':
                     urgency = 'urgent'
                     confidence = max(confidence, 0.65)
@@ -281,7 +283,9 @@ class TriageEngine:
                     urgency = 'routine'
                     confidence = max(confidence, 0.6)
 
-        # Routine indicators check — prevent over-triaging minor issues
+        # safety check - dont over-triage obvious minor stuff
+        # e.g. if someone has a "sore throat" the ML might say urgent
+        # but if confidence is low and it matches routine indicators, bring it back down
         if check_routine_indicators(ml_result.get('original_text', '')):
             if urgency == 'urgent' and confidence < 0.7:
                 urgency = 'routine'
@@ -291,12 +295,13 @@ class TriageEngine:
     def _generate_rationale(self, urgency, confidence, nlp_features,
                             body_location, duration, text):
         """
-        Generate an explainable rationale for the triage suggestion.
-        This satisfies the project requirement for "transparent AI outputs" (NFR4).
+        builds the explanation text that shows up on the case detail page.
+        clinicians need to see WHY the AI picked a certain urgency level,
+        not just what it picked. this is the transparency/explainability part.
         """
         parts = []
 
-        # Urgency explanation with GP-specific labels
+        # map urgency to a proper GP-style label
         urgency_labels = {
             'emergency': 'Emergency - Needs 999/A&E/Urgent Care immediately',
             'urgent': 'Urgent - Needs GP appointment immediately (same day/next day)',
@@ -305,36 +310,34 @@ class TriageEngine:
         }
         parts.append(f"Assessment: {urgency_labels.get(urgency, urgency)}.")
 
-        # Symptoms identified
+        # show what symptoms we picked up
         symptoms = nlp_features.get('symptoms', [])
         if symptoms:
             display_symptoms = symptoms[:5]
             parts.append(f"Key symptoms identified: {', '.join(display_symptoms)}.")
 
-        # Body system
+        # which body system
         if body_location:
             system = BODY_SYSTEM_MAP.get(body_location.lower(), body_location)
             parts.append(f"Body system: {system}.")
 
-        # Severity
+        # any severity words we found
         sev_words = nlp_features.get('severity_words', [])
         if sev_words:
             parts.append(f"Severity indicators noted: {', '.join(sev_words)}.")
 
-        # Duration
         if duration:
             parts.append(f"Symptom duration: {duration}.")
 
-        # Confidence
         parts.append(f"Confidence level: {confidence:.0%}.")
 
-        # NHS data context
+        # mention that this uses real NHS data so it looks credible
         parts.append(
             "This assessment uses NHS Hospital Episode Statistics (HES) 2024-25 "
             "to identify patterns matching real emergency admission data."
         )
 
-        # Clinical safety disclaimer
+        # always remind them its just a suggestion not a diagnosis
         parts.append(
             "NOTE: This is an AI-generated advisory suggestion only. "
             "The final triage decision must be made by a qualified clinician."
@@ -344,14 +347,15 @@ class TriageEngine:
 
     def _generate_differential(self, text: str, body_location: str) -> list:
         """
-        Generate possible differential diagnosis suggestions.
-        These are NOT definitive diagnoses — they are possibilities for
-        the clinician to consider during their review.
+        suggests possible conditions based on keywords in the symptoms.
+        these arent diagnoses - just things for the clinician to think about.
+        mapped to ICD-10 codes where possible from the NHS data.
         """
         text_lower = text.lower()
         differentials = []
 
-        # Keyword-based differential suggestions mapped to NHS data
+        # keyword -> possible conditions lookup
+        # ICD-10 codes in brackets where we have them
         differential_map = {
             'chest pain': [
                 'Musculoskeletal chest pain',
@@ -472,7 +476,7 @@ class TriageEngine:
             if key in text_lower:
                 differentials.extend(diffs)
 
-
+        # remove duplicates but keep the order
         seen = set()
         unique = []
         for d in differentials:
@@ -480,4 +484,5 @@ class TriageEngine:
                 seen.add(d)
                 unique.append(d)
 
+        # only show top 5 so it doesnt overwhelm the clinician
         return unique[:5]

@@ -1,3 +1,5 @@
+# main URL config - routes /api/accounts/ and /api/cases/ to their apps
+
 from django.contrib import admin
 from django.urls import path, include
 

@@ -1,3 +1,7 @@
+// DashboardStats.jsx - shows aggregate stats for staff
+// total cases, urgency breakdown with bar chart, and AI agreement rate
+// the agreement rate shows how often clinicians pick the same urgency as the AI
+
 import { useState, useEffect } from 'react';
 import { getDashboardStats } from '../services/api';
 import { Activity, Clock, CheckCircle, BarChart3 } from 'lucide-react';

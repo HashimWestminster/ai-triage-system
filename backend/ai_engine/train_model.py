@@ -1,3 +1,11 @@
+# train_model.py - trains the ML model for the triage system
+# uses scikit-learn with a TF-IDF + Random Forest pipeline
+# the training data is 291 symptom scenarios that i mapped to NHS HES data
+# each one has the ICD-10 code and real emergency admission rate
+#
+# to retrain just run: python ai_engine/train_model.py
+# it saves the model as triage_model.pkl which the triage engine loads
+
 import json
 import os
 import random
@@ -5,6 +13,9 @@ import pickle
 from pathlib import Path
 
 
+# training data - 291 samples across 4 urgency levels
+# each sample is a (symptom text, urgency label) pair
+# annotated with NHS HES ICD-10 codes and real ER admission rates
 TRAINING_DATA = [
 
 
@@ -72,7 +83,6 @@ TRAINING_DATA = [
     # E87 Fluid/Electrolyte disorder (87% ER rate, 57,260 emergency admissions)
     ("severe dehydration confused very weak not passed urine for hours", "emergency"),
 
-    # External Causes from Hospital_COllision_stats.xlsx
     # W19 Unspecified fall (94% ER rate, 152,307 emergency admissions)
     ("serious fall from height unable to move in severe pain", "emergency"),
     ("fall and hit head now drowsy and vomiting loss of consciousness", "emergency"),
@@ -94,7 +104,7 @@ TRAINING_DATA = [
     # W54 Dog bite (79% ER rate, 8,489 emergency admissions)
     ("serious dog bite to face deep wound heavy bleeding", "emergency"),
 
-    # Other classic emergencies
+    # other classic emergencies
     ("severe allergic reaction throat swelling difficulty breathing", "emergency"),
     ("seizure lasting more than 5 minutes", "emergency"),
     ("baby has stopped breathing and is unresponsive", "emergency"),
@@ -109,6 +119,8 @@ TRAINING_DATA = [
     ("electric shock and now having palpitations and chest pain", "emergency"),
     ("suicidal thoughts and planning to end life", "emergency"),
 
+
+    # --- URGENT cases (need same-day/next-day GP) ---
 
     # R10 Abdominal Pain (67% ER rate, 217,731 emergency admissions)
     ("severe abdominal pain right side getting worse over hours", "urgent"),
@@ -141,7 +153,7 @@ TRAINING_DATA = [
     ("unable to bear weight on ankle after fall possible fracture", "urgent"),
     ("sudden severe muscle pain and swelling after injury", "urgent"),
 
-    # Other urgent presentations
+    # other urgent presentations
     ("high fever 39.5 degrees not responding to paracetamol for 2 days", "urgent"),
     ("worst headache I have ever had came on suddenly", "urgent"),
     ("blood in stool for the past 3 days dark coloured", "urgent"),
@@ -171,6 +183,8 @@ TRAINING_DATA = [
     ("severe tooth infection face swelling and high temperature", "urgent"),
 
 
+
+    # --- ROUTINE cases (can wait 2-3 weeks for GP) ---
 
     # H25 Cataracts (0% ER rate, 323,312 waitlist admissions)
     ("gradual blurring of vision over several months difficulty reading", "routine"),
@@ -219,7 +233,7 @@ TRAINING_DATA = [
     ("recurring left-sided abdominal pain and bloating known diverticulitis", "routine"),
     ("need follow up after diverticulitis episode last month", "routine"),
 
-    # Other routine presentations
+    # other routine presentations
     ("mild sore throat and runny nose for 3 days feeling okay", "routine"),
     ("ongoing back pain for 2 months getting slightly worse", "routine"),
     ("mild headaches happening a few times a week tension type", "routine"),
@@ -252,6 +266,8 @@ TRAINING_DATA = [
     ("follow up after recent blood test results", "routine"),
 
 
+
+    # --- SELF CARE cases (pharmacy/home remedies, no GP needed) ---
 
     ("common cold symptoms runny nose mild cough sneezing", "self_care"),
     ("mild stomach ache after eating too much feeling bloated", "self_care"),
@@ -292,7 +308,7 @@ TRAINING_DATA = [
 
 
 def train_model():
-    """Train the triage classifier using NHS HES-informed data and save it."""
+    """trains the triage classifier and saves it as a pickle file"""
     try:
         from sklearn.feature_extraction.text import TfidfVectorizer
         from sklearn.ensemble import RandomForestClassifier
@@ -312,36 +328,39 @@ def train_model():
     print(f"  Routine:    {labels.count('routine')}")
     print(f"  Self-care:  {labels.count('self_care')}")
 
-
+    # the pipeline: TF-IDF turns text into numbers, random forest classifies
+    # ngram_range=(1,3) means it looks at single words AND phrases up to 3 words
+    # so it can pick up on things like "chest pain" and "crushing chest pain"
     pipeline = Pipeline([
         ('tfidf', TfidfVectorizer(
-            max_features=2000,
-            ngram_range=(1, 3),
-            stop_words='english',
-            sublinear_tf=True,
+            max_features=2000,       # top 2000 most useful words/phrases
+            ngram_range=(1, 3),      # unigrams, bigrams and trigrams
+            stop_words='english',    # ignore common words like "the", "is"
+            sublinear_tf=True,       # log scaling so common terms dont dominate
         )),
         ('clf', RandomForestClassifier(
-            n_estimators=200,
-            random_state=42,
-            class_weight='balanced',
-            min_samples_leaf=2,
+            n_estimators=200,        # 200 decision trees vote on the answer
+            random_state=42,         # fixed seed so results are reproducible
+            class_weight='balanced', # handles imbalanced classes automatically
+            min_samples_leaf=2,      # prevents overfitting to single examples
         )),
     ])
 
-    # Train the model
+    # train it
     pipeline.fit(texts, labels)
 
-    # Cross-validation
+    # 5-fold cross validation to check how well it generalises
     scores = cross_val_score(pipeline, texts, labels, cv=5, scoring='accuracy')
     print(f"\nCross-validation accuracy: {scores.mean():.2%} (+/- {scores.std():.2%})")
 
-    # Save model
+    # save the trained model
     model_path = Path(__file__).parent / 'triage_model.pkl'
     with open(model_path, 'wb') as f:
         pickle.dump(pipeline, f)
 
     print(f"Model saved to: {model_path}")
 
+    # run some test predictions to make sure it looks right
     print("\n" + "="*70)
     print("AI TRIAGE ANALYSIS - Test Predictions")
     print("="*70)

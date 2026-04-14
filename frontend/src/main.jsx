@@ -1,3 +1,6 @@
+// main.jsx - entry point for the react app
+// wraps everything in BrowserRouter for routing and AuthProvider for user state
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'

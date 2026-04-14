@@ -1,7 +1,5 @@
-"""
-Django settings for AI Triage System.
-Student: Hashim Khan (W1832028)
-"""
+# settings.py - django config for the AI triage system
+# Hashim Khan - W1832028 - University of Westminster
 
 import os
 from pathlib import Path
@@ -15,13 +13,13 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# in production youd change this to a proper secret key
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-in-production-h4sh1m')
 
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
-# Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -29,11 +27,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Third-party
+    # third party
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
-    # Local apps
+    # my apps
     'accounts',
     'cases',
 ]
@@ -70,6 +68,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'triage_project.wsgi.application'
 
+# use postgres if DATABASE_URL is set, otherwise sqlite for local dev
 if os.environ.get('DATABASE_URL'):
     import dj_database_url
     DATABASES = {
@@ -83,6 +82,7 @@ else:
         }
     }
 
+# using my custom user model instead of djangos default
 AUTH_USER_MODEL = 'accounts.User'
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -92,6 +92,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# DRF config - JWT auth by default, 20 results per page
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -103,29 +104,31 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
+# let users log in with email instead of username
 AUTHENTICATION_BACKENDS = [
     'accounts.backends.EmailBackend',
 ]
 
+# JWT token settings - access token lasts 8 hours, refresh token 1 day
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
 }
 
-
+# allow the vite dev server to talk to django
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS',
     'http://localhost:5173,http://127.0.0.1:5173'
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
 
+# UK locale and timezone
 LANGUAGE_CODE = 'en-gb'
 TIME_ZONE = 'Europe/London'
 USE_I18N = True
 USE_TZ = True
 
-# Static files
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'

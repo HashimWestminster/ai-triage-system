@@ -1,3 +1,7 @@
+# accounts/views.py - auth endpoints, user management, and surgery hours
+# login uses JWT tokens with email instead of username
+# surgery status is public so the frontend can show open/closed banners
+
 from rest_framework import generics, permissions, status, serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -16,17 +20,19 @@ User = get_user_model()
 
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Accept email instead of username for login."""
+    """swaps username for email on login - patients log in with their email"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
+        # replace the username field with email
         self.fields['email'] = serializers.EmailField()
         self.fields.pop('username', None)
 
     def validate(self, attrs):
+        # django expects 'username' internally so just swap it
         attrs['username'] = attrs.pop('email', '')
         data = super().validate(attrs)
+        # include the user profile in the response so the frontend has it
         data['user'] = UserSerializer(self.user).data
         return data
 
@@ -43,13 +49,13 @@ class RegisterView(generics.CreateAPIView):
 
 @api_view(['GET'])
 def me(request):
-    """Get current user profile."""
+    """returns the current logged-in user's profile"""
     return Response(UserSerializer(request.user).data)
 
 
 @api_view(['GET'])
 def user_list(request):
-    """List all users - care navigators and superusers only."""
+    """list all users - only care navigators and superusers can see this"""
     if request.user.role not in ('care_navigator', 'superuser'):
         return Response(
             {"detail": "Only care navigators and site administrators can view the user list."},
@@ -63,14 +69,18 @@ def user_list(request):
     return Response(serializer.data)
 
 
-# ---- Surgery Hours endpoints ----
+# ---- Surgery Hours ----
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def surgery_status(request):
-    """Public endpoint - tells patients whether the surgery is currently open."""
+    """
+    public endpoint - no login needed.
+    checks if the surgery is open right now based on the configured hours.
+    the frontend calls this to show the open/closed banner on the patient dashboard.
+    """
     now = timezone.localtime()
-    current_day = now.weekday()  # Monday=0, Sunday=6
+    current_day = now.weekday()
     current_time = now.time()
 
     try:
@@ -88,7 +98,7 @@ def surgery_status(request):
             'current_time': current_time.strftime('%H:%M'),
         })
     except SurgeryHours.DoesNotExist:
-        # No hours configured = always open (so it works out of the box)
+        # if no hours are set up yet, default to always open
         return Response({
             'is_open': True,
             'day': now.strftime('%A'),
@@ -102,7 +112,7 @@ def surgery_status(request):
 
 @api_view(['GET', 'PUT'])
 def surgery_hours(request):
-    """GET: list all surgery hours. PUT: bulk update (superuser only)."""
+    """GET returns all 7 days of hours, PUT lets superuser update them all at once"""
     if request.method == 'GET':
         if request.user.role not in ('care_navigator', 'superuser'):
             return Response({"detail": "Not authorised."}, status=status.HTTP_403_FORBIDDEN)
@@ -115,6 +125,7 @@ def surgery_hours(request):
                 {"detail": "Only site administrators can update surgery hours."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        # bulk update - loop through the 7 days and update or create each one
         for item in request.data:
             obj, _ = SurgeryHours.objects.update_or_create(
                 day_of_week=item['day_of_week'],

@@ -1,3 +1,6 @@
+# accounts/serializers.py - handles converting user data to/from JSON
+# registration, profile, user list, and surgery hours serializers
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import SurgeryHours
@@ -6,6 +9,7 @@ User = get_user_model()
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
+    """handles patient registration - validates passwords match etc"""
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
     username = serializers.CharField(required=False, allow_blank=True)
@@ -26,12 +30,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop('password')
-        # Only superusers (via Django admin) can create privileged accounts
+        # dont let random people register as clinicians or admins
+        # only actual staff (via django admin) can create privileged accounts
         if validated_data.get('role') in ['clinician', 'care_navigator', 'superuser']:
             request = self.context.get('request')
             if not request or not request.user.is_staff:
                 validated_data['role'] = 'patient'
 
+        # auto-generate a username from the email if one wasnt provided
         base_username = validated_data.get('username', validated_data['email'].split('@')[0])
         username = base_username
         counter = 1
@@ -46,6 +52,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """full user profile - used in the /me endpoint and case details"""
     full_name = serializers.SerializerMethodField()
     role_display = serializers.SerializerMethodField()
 
@@ -67,7 +74,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for listing users."""
+    """lighter version for the user management table"""
     full_name = serializers.SerializerMethodField()
     role_display = serializers.SerializerMethodField()
 
@@ -83,6 +90,7 @@ class UserListSerializer(serializers.ModelSerializer):
 
 
 class SurgeryHoursSerializer(serializers.ModelSerializer):
+    """serializer for the surgery hours config"""
     day_name = serializers.SerializerMethodField()
 
     class Meta:

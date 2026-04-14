@@ -1,9 +1,13 @@
+# accounts/models.py - custom user model and surgery hours
+# the user model has 4 roles: patient, clinician, care_navigator, superuser
+# surgery hours control when patients can submit cases
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
 class User(AbstractUser):
-    """Custom user with role-based access for the triage system."""
+    """custom user model with roles for the triage system"""
 
     class Role(models.TextChoices):
         PATIENT = 'patient', 'Patient'
@@ -29,6 +33,7 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.get_full_name()} ({self.get_role_display()})"
 
+    # helper properties so we can do user.is_patient instead of user.role == 'patient'
     @property
     def is_patient(self):
         return self.role == self.Role.PATIENT
@@ -47,7 +52,11 @@ class User(AbstractUser):
 
 
 class SurgeryHours(models.Model):
-    """Configurable opening hours - patients can only submit cases during these windows."""
+    """
+    configurable opening hours for the surgery.
+    patients can only submit cases during these windows.
+    the site admin can change these from the Surgery Hours page.
+    """
 
     DAY_CHOICES = [
         (0, 'Monday'),
