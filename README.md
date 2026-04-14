@@ -45,7 +45,7 @@ The layers combine so that safety rules override ML predictions, and NLP-derived
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py seed_demo_data
@@ -61,63 +61,6 @@ npm run dev
 ```
 
 Open **http://localhost:5173** in your browser.
-
-## Project Structure
-
-```
-ai-triage-system/
-├── backend/
-│   ├── accounts/                   # User authentication and surgery hours
-│   │   ├── models.py               # Custom User model (4 roles), SurgeryHours
-│   │   ├── views.py                # Login, registration, user list, surgery status
-│   │   ├── serializers.py          # User and surgery hours serializers
-│   │   └── urls.py
-│   ├── ai_engine/                  # Core AI triage engine
-│   │   ├── triage.py               # TriageEngine class (3-layer assessment)
-│   │   ├── rules.py                # NHS HES red-flag safety rules
-│   │   ├── train_model.py          # ML training script (291 samples)
-│   │   └── symptoms.json           # Symptom categories and urgency modifiers
-│   ├── cases/                      # Triage case management
-│   │   ├── models.py               # PatientCase, AuditLog
-│   │   ├── views.py                # Submit, decide, close, dashboard stats
-│   │   ├── serializers.py          # Case serializers (triggers AI on create)
-│   │   └── urls.py
-│   ├── triage_project/             # Django project config
-│   │   ├── settings.py
-│   │   └── urls.py
-│   ├── manage.py
-│   └── requirements.txt
-│
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/
-│   │   │   └── Layout.jsx          # Navigation bar and page wrapper
-│   │   ├── context/
-│   │   │   └── AuthContext.jsx      # JWT auth state management
-│   │   ├── pages/
-│   │   │   ├── LoginPage.jsx
-│   │   │   ├── RegisterPage.jsx
-│   │   │   ├── PatientDashboard.jsx
-│   │   │   ├── SubmitCasePage.jsx   # Multi-step symptom form
-│   │   │   ├── CaseDetailPage.jsx   # AI panel + clinician/navigator actions
-│   │   │   ├── ClinicianDashboard.jsx
-│   │   │   ├── NavigatorDashboard.jsx
-│   │   │   ├── DashboardStats.jsx
-│   │   │   ├── UserManagement.jsx
-│   │   │   └── SurgeryHoursPage.jsx
-│   │   ├── services/
-│   │   │   └── api.js              # Axios client with JWT interceptors
-│   │   ├── App.jsx                 # Route definitions
-│   │   ├── main.jsx                # Entry point
-│   │   └── index.css
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
-│
-├── .gitignore
-└── README.md
-```
 
 ## User Roles
 
