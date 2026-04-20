@@ -25,10 +25,12 @@ class PatientCaseCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = PatientCase
         fields = [
+            'id',  # returned on creation so callers can follow up on the case
             'visit_type', 'body_location', 'symptom_duration',
             'symptoms_text', 'selected_symptoms', 'severity_symptoms',
             'additional_info', 'previous_treatment', 'previously_seen',
         ]
+        read_only_fields = ['id']
 
     def create(self, validated_data):
         # attach the patient to the case
